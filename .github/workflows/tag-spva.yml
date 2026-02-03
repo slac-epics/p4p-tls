@@ -1,0 +1,126 @@
+name: Tag P4P SPVA snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "YYYYMMDD (blank = today, UTC)"
+        required: false
+      target_ref:
+        description: "Git ref to tag (blank = workflow ref)"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.target_ref || github.ref }}
+
+      - name: Configure git identity (actor)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name  "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: Compute tag
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERFILE="src/p4p/version.py"
+          [[ -f "$VERFILE" ]] || { echo "Missing $VERFILE"; exit 1; }
+
+          # Parse: version = Version('4.2.2')
+          P4P_VER="$(python3 -c "import re,sys; t=open('$VERFILE','r',encoding='utf-8').read(); m=re.search(r\"^version\\s*=\\s*Version\\(\\s*['\\\"]([^'\\\"]+)['\\\"]\\s*\\)\\s*$\", t, re.M); sys.exit('Failed to parse version from $VERFILE' if not m else 0); print(m.group(1))")"
+
+          [[ -n "$P4P_VER" ]] || { echo "Empty p4p version parsed"; exit 1; }
+
+          if [[ -n "${{ inputs.date }}" ]]; then
+            DATE="${{ inputs.date }}"
+            [[ "$DATE" =~ ^[0-9]{8}$ ]] || { echo "Bad date: $DATE"; exit 1; }
+          else
+            DATE="$(date -u +%Y%m%d)"
+          fi
+
+          TAG="p4p-${P4P_VER}-spva-${DATE}"
+          SHA="$(git rev-parse HEAD)"
+
+          echo "p4p_ver=$P4P_VER" >> "$GITHUB_OUTPUT"
+          echo "date=$DATE"       >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA"         >> "$GITHUB_OUTPUT"
+
+      - name: Show plan
+        shell: bash
+        run: |
+          echo "Commit : ${{ steps.vars.outputs.sha }}"
+          echo "Version: ${{ steps.vars.outputs.p4p_ver }}"
+          echo "Tag    : ${{ steps.vars.outputs.tag }}"
+
+      - name: Ensure tag does not exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.vars.outputs.tag }}"
+          git fetch --tags origin
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag already exists: $TAG"
+            exit 1
+          fi
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q "${TAG}$"; then
+            echo "Tag already exists on origin: $TAG"
+            exit 1
+          fi
+
+      - name: Create and push annotated tag (limit 30 subjects)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.vars.outputs.tag }}"
+          VER="${{ steps.vars.outputs.p4p_ver }}"
+          DATE="${{ steps.vars.outputs.date }}"
+          SHA="$(git rev-parse --short=12 HEAD)"
+          LIMIT=30
+
+          PREV_TAG="$(git describe --tags --abbrev=0 --match 'p4p-*-spva-*' 2>/dev/null || true)"
+
+          if [[ -n "$PREV_TAG" ]]; then
+            BASELINE_LINE="Changes since ${PREV_TAG}:"
+            TOTAL="$(git rev-list --no-merges --count "${PREV_TAG}..HEAD")"
+            CHANGES="$(git log --no-merges -n "$LIMIT" --pretty=format:'- %s' "${PREV_TAG}..HEAD")"
+          else
+            BASELINE_LINE="Recent changes (no previous SPVA tag found):"
+            TOTAL="$(git rev-list --no-merges --count HEAD)"
+            CHANGES="$(git log --no-merges -n "$LIMIT" --pretty=format:'- %s' HEAD)"
+          fi
+
+          if [[ -z "$CHANGES" ]]; then
+            CHANGES="- (no commits)"
+            TOTAL=0
+          fi
+
+          if [[ "$TOTAL" -gt "$LIMIT" ]]; then
+            CHANGES="$(printf "%s\n- ... (%d more commits)\n" "$CHANGES" $((TOTAL-LIMIT)))"
+          fi
+
+          MSG="$(printf "SPVA snapshot for p4p %s (%s) [%s]\n%s\n%s\n" \
+            "$VER" "$DATE" "$SHA" \
+            "$BASELINE_LINE" \
+            "$CHANGES")"
+
+          echo "Tag message:"
+          echo "----------------"
+          echo "$MSG"
+          echo "----------------"
+
+          git tag -a "$TAG" -m "$MSG"
+          git push origin "refs/tags/$TAG"
