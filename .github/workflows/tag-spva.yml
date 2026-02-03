@@ -40,7 +40,16 @@ jobs:
           [[ -f "$VERFILE" ]] || { echo "Missing $VERFILE"; exit 1; }
 
           # Parse: version = Version('4.2.2')
-          P4P_VER="$(python3 -c "import re,sys; t=open('$VERFILE','r',encoding='utf-8').read(); m=re.search(r\"^version\\s*=\\s*Version\\(\\s*['\\\"]([^'\\\"]+)['\\\"]\\s*\\)\\s*$\", t, re.M); sys.exit('Failed to parse version from $VERFILE' if not m else 0); print(m.group(1))")"
+          P4P_VER="$(python3 - <<'PY'
+          import re
+          p = "src/p4p/version.py"
+          txt = open(p, "r", encoding="utf-8").read()
+          m = re.search(r"^version\s*=\s*Version\(\s*['\"]([^'\"]+)['\"]\s*\)\s*$", txt, re.M)
+          if not m:
+              raise SystemExit(f"Failed to parse version from {p}")
+          print(m.group(1))
+          PY
+          )"
 
           [[ -n "$P4P_VER" ]] || { echo "Empty p4p version parsed"; exit 1; }
 
