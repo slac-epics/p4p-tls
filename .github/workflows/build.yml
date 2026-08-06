@@ -24,11 +24,6 @@ jobs:
           skip: true
 
         - ml: manylinux2014_x86_64
-          py: cp38-cp38
-          cy: "Cython<3.1"
-          numpy: numpy==1.17.3
-
-        - ml: manylinux2014_x86_64
           py: cp39-cp39
           numpy: numpy==1.21.6 # Highest supported on this piparch
 
@@ -46,10 +41,6 @@ jobs:
 
         - ml: manylinux2014_x86_64
           py: cp313-cp313
-          numpy: numpy==2.2.6 # Highest supported on this piparch
-
-        - ml: manylinux2014_x86_64
-          py: cp313-cp313t
           numpy: numpy==2.2.6 # Highest supported on this piparch
 
         - ml: manylinux_2_28_x86_64
