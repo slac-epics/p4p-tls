@@ -60,12 +60,12 @@ jobs:
       EXTRA: ${{ matrix.extra }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
             submodules: recursive
 
       - name: Automatic core dumper analysis
-        uses: mdavidsaver/ci-core-dumper@ci
+        uses: mdavidsaver/ci-core-dumper@cda67d63a56db36aca1126d8d00aa5f7ff1ee1db # ci
 
       - name: "apt-get install"
         if: runner.os == 'Linux'
@@ -81,7 +81,7 @@ jobs:
 
       - name: "vcpkg cache"
         if: runner.os == 'Windows'
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: c:/vcpkg-cache
           key: ${{ runner.os }}-vcpkg
@@ -95,7 +95,7 @@ jobs:
           ls C:/vcpkg/installed/x64-windows
           echo "LIBEVENT=C:/vcpkg/installed/x64-windows" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.py }}
 
