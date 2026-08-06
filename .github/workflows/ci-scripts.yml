@@ -111,8 +111,11 @@ jobs:
 
       - name: Py Deps
         run: |
-          pip install -U pip
-          pip install Cython numpy ply nose2 qtpy PyQt5 ${{ matrix.cothread }}
+          # pip 26 refuses to replace itself when it is the running script, which is what
+          # the pip launcher is on Windows. Going through the interpreter lets it swap the
+          # files out from under a process that is not holding them open.
+          python -m pip install -U pip
+          python -m pip install Cython numpy ply nose2 qtpy PyQt5 ${{ matrix.cothread }}
           python -c 'from qtpy.QtCore import QObject, QCoreApplication'
 
       - name: Build main module
